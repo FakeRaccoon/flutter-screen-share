@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Screen Viewer</title>
+</head>
+<body>
+    <h1>WebRTC Screen Viewer</h1>
+
+    <video id="remote-video" autoplay playsinline style="width: 80%; border: 2px solid black;"></video>
+
+    <h3>Paste Offer from Flutter</h3>
+    <textarea id="offer-sdp" placeholder="Paste Offer here" rows="5" cols="50"></textarea>
+    <button id="set-offer">Set Offer</button>
+
+    <h3>Copy Answer for Flutter</h3>
+    <textarea id="answer-sdp" placeholder="Copy Answer here" rows="5" cols="50" readonly></textarea>
+
+    <script>
+        let peerConnection = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+
+        let remoteStream = new MediaStream();
+        document.getElementById('remote-video').srcObject = remoteStream;
+
+        peerConnection.ontrack = (event) => {
+            event.streams[0].getTracks().forEach((track) => {
+                remoteStream.addTrack(track);
+            });
+        };
+
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                console.log('Generated ICE Candidate:', event.candidate);
+            }
+        };
+
+        async function setOffer() {
+            let offer = JSON.parse(document.getElementById('offer-sdp').value);
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+
+            let answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+
+            // Automatically update the answer field
+            document.getElementById('answer-sdp').value = JSON.stringify(peerConnection.localDescription);
+        }
+
+        document.getElementById('set-offer').addEventListener('click', setOffer);
+    </script>
+</body>
+</html>
