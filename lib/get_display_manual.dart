@@ -117,65 +117,71 @@ class GetDisplayManualState extends State<GetDisplayManual> {
   Response _htmlHandler(Request request) {
     return Response.ok(
       '''
-    <!DOCTYPE html>
+   <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WebRTC Screen Viewer</title>
-</head>
-<body>
+  </head>
+  <body>
     <h1>WebRTC Screen Viewer</h1>
 
-    <video id="remote-video" autoplay playsinline style="width: 80%; border: 2px solid black;"></video>
+    <video
+      id="remote-video"
+      autoplay
+      playsinline
+      muted
+      style="width: 80%; border: 2px solid black"
+    ></video>
 
     <script>
-let peerConnection = new RTCPeerConnection({
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-});
+      let peerConnection = new RTCPeerConnection({
+        iceServers: [],
+      });
 
-let socket = new WebSocket("ws://10.10.4.14:4000");
+      let socket = new WebSocket("ws://10.10.4.14:4000");
 
-socket.onopen = () => {
-    console.log("🔗 WebSocket Connected!");
-};
+      socket.onopen = () => {
+        console.log("🔗 WebSocket Connected!");
+      };
 
-socket.onmessage = async (event) => {
-    let data = JSON.parse(event.data);
-    console.log("📩 Received from WebSocket:", data);
+      socket.onmessage = async (event) => {
+        let data = JSON.parse(event.data);
+        console.log("📩 Received from WebSocket:", data);
 
-    if (data.type === "offer") {
-        console.log("🔄 Received Offer → Generating Answer...");
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
+        if (data.type === "offer") {
+          console.log("🔄 Received Offer → Generating Answer...");
+          await peerConnection.setRemoteDescription(
+            new RTCSessionDescription(data)
+          );
 
-        let answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
+          let answer = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answer);
 
-        socket.send(JSON.stringify({ type: "answer", sdp: answer.sdp }));
-        console.log("📤 Sent Answer to WebSocket");
+          socket.send(JSON.stringify({ type: "answer", sdp: answer.sdp }));
+          console.log("📤 Sent Answer to WebSocket");
+        } else if (data.type === "answer") {
+          console.log("✅ Received Answer → Applying...");
+          await peerConnection.setRemoteDescription(
+            new RTCSessionDescription(data)
+          );
+        } else if (data.type === "candidate") {
+          console.log("🔀 Adding ICE Candidate");
+          peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        }
+      };
 
-    } else if (data.type === "answer") {
-        console.log("✅ Received Answer → Applying...");
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
-    } else if (data.type === "candidate") {
-        console.log("🔀 Adding ICE Candidate");
-        peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-    }
-};
-
-
-peerConnection.ontrack = (event) => {
-    console.log("🎥 Track event received:", event);
-    if (event.streams.length > 0) {
-        document.getElementById("remote-video").srcObject = event.streams[0];
-    } else {
-        console.log("⚠️ No stream attached to track event.");
-    }
-};
-</script>
-
-
-</body>
+      peerConnection.ontrack = (event) => {
+        console.log("🎥 Track event received:", event);
+        if (event.streams.length > 0) {
+          document.getElementById("remote-video").srcObject = event.streams[0];
+        } else {
+          console.log("⚠️ No stream attached to track event.");
+        }
+      };
+    </script>
+  </body>
 </html>
 
     ''',
@@ -213,11 +219,7 @@ peerConnection.ontrack = (event) => {
 
   /// ✅ Initialize WebRTC Peer Connection
   Future<void> _initializePeerConnection() async {
-    final config = {
-      'iceServers': [
-        {'urls': 'stun:stun.l.google.com:19302'},
-      ],
-    };
+    final config = {'iceServers': []};
 
     _peerConnection = await createPeerConnection(config);
 
