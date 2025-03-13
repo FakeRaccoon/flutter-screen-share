@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_background/flutter_background.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:network_info_plus/network_info_plus.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_web_socket/shelf_web_socket.dart';
@@ -22,6 +23,8 @@ class GetDisplayManualState extends State<GetDisplayManual> {
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
   TextEditingController answerController = TextEditingController();
+
+  late String wifiIp;
 
   Set<WebSocketChannel> clients = {};
 
@@ -105,6 +108,12 @@ class GetDisplayManualState extends State<GetDisplayManual> {
   }
 
   void _startServer() async {
+    String? wifiIP = await NetworkInfo().getWifiIP();
+
+    wifiIp = wifiIP!;
+
+    log("DEVICE IP $wifiIp");
+
     var handler = const Pipeline()
         .addMiddleware(logRequests())
         .addHandler(_htmlHandler);
@@ -115,6 +124,7 @@ class GetDisplayManualState extends State<GetDisplayManual> {
 
   /// ✅ Serve Simple HTML Page (without reading from a file)
   Response _htmlHandler(Request request) {
+    String wsUrl = "ws://$wifiIp:4000";
     return Response.ok(
       '''
     <!DOCTYPE html>
@@ -131,10 +141,10 @@ class GetDisplayManualState extends State<GetDisplayManual> {
 
     <script>
 let peerConnection = new RTCPeerConnection({
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    iceServers: [] // No ICE servers
 });
 
-let socket = new WebSocket("ws://10.10.4.14:4000");
+let socket = new WebSocket("$wsUrl");
 
 socket.onopen = () => {
     console.log("🔗 WebSocket Connected!");
@@ -214,11 +224,8 @@ peerConnection.ontrack = (event) => {
   /// ✅ Initialize WebRTC Peer Connection
   Future<void> _initializePeerConnection() async {
     final config = {
-      'iceServers': [
-        {'urls': 'stun:stun.l.google.com:19302'},
-      ],
+      'iceServers': [], // No STUN/TURN servers
     };
-
     _peerConnection = await createPeerConnection(config);
 
     _peerConnection?.onIceCandidate = (RTCIceCandidate candidate) {
