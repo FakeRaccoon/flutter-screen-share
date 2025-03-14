@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:share_screen/config/themes/theme.dart';
 import 'package:flutter_background/flutter_background.dart';
 import 'package:share_screen/modules/share_screen_local_ip/view/share_screen_local_ip_view.dart';
 
@@ -32,9 +33,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Local Share Screen App',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
+      theme: AppTheme.theme,
       home: ShareScreenLocalIpView(),
     );
   }

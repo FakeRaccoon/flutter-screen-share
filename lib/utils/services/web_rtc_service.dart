@@ -20,9 +20,11 @@ class WebRtcService extends ChangeNotifier {
   final ValueNotifier<int?> localRendererNotifier = ValueNotifier<int?>(null);
 
   MediaStream? _localStream;
+  final ValueNotifier<bool> isScreenSharingNotifier = ValueNotifier(false);
 
-  //TODO get total client connected
   Set<WebSocketChannel> clients = {};
+  ValueNotifier<int> clientCountNotifier = ValueNotifier<int>(0);
+
   Map<WebSocketChannel, RTCPeerConnection> peerConnections = {};
 
   // ICE server configuration with a STUN server.
@@ -38,6 +40,8 @@ class WebRtcService extends ChangeNotifier {
     final handler = webSocketHandler((WebSocketChannel webSocket, _) async {
       log("🟢 Client connected");
       clients.add(webSocket);
+      clientCountNotifier.value = clients.length;
+      notifyListeners();
 
       // Create a new peer connection for this client.
       var peerConnection = await createPeerConnection(iceConfig);
@@ -86,12 +90,16 @@ class WebRtcService extends ChangeNotifier {
           clients.remove(webSocket);
           peerConnections[webSocket]?.close();
           peerConnections.remove(webSocket);
+          clientCountNotifier.value = clients.length;
+          notifyListeners();
         },
         onError: (error) {
           log("⚠️ WebSocket error: $error");
           clients.remove(webSocket);
           peerConnections[webSocket]?.close();
           peerConnections.remove(webSocket);
+          clientCountNotifier.value = clients.length;
+          notifyListeners();
         },
       );
     });
@@ -180,7 +188,6 @@ class WebRtcService extends ChangeNotifier {
       log('✅ Screen share stream received');
       _localStream = stream;
       localRenderer.value.srcObject = _localStream;
-      notifyListeners();
 
       // Add the screen tracks to every connection and create an offer per client.
       for (var entry in peerConnections.entries) {
@@ -192,7 +199,12 @@ class WebRtcService extends ChangeNotifier {
         }
         await createOfferForClient(pc, entry.key);
       }
+
+      isScreenSharingNotifier.value = true;
+      notifyListeners();
     } catch (e) {
+      notifyListeners();
+      isScreenSharingNotifier.value = false;
       log('❌ Error starting screen sharing: $e');
     }
   }
@@ -217,13 +229,14 @@ class WebRtcService extends ChangeNotifier {
       _localStream = null;
     }
     localRenderer.value.srcObject = null;
-    notifyListeners();
     log("⛔ Screen sharing stopped");
 
     // Notify all clients that the stream has stopped.
     for (var client in clients) {
       client.sink.add(jsonEncode({'type': 'stream_stopped'}));
     }
+    isScreenSharingNotifier.value = false;
+    notifyListeners();
   }
 
   void close() {
