@@ -1,10 +1,11 @@
-import 'dart:developer';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:share_screen/utils/services/connectivity_service.dart';
 import 'package:share_screen/utils/services/local_server_service.dart';
 import 'package:share_screen/utils/services/web_info_service.dart';
 import 'package:share_screen/utils/services/web_rtc_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ShareScreenLocalIpView extends StatefulWidget {
   const ShareScreenLocalIpView({super.key});
@@ -46,7 +47,6 @@ class ShareScreenLocalIpViewState extends State<ShareScreenLocalIpView> {
   }
 
   void _handleWifiIpChange() {
-    log("Network Change");
     WebRtcService.instance.stopScreenSharing();
   }
 
@@ -59,41 +59,160 @@ class ShareScreenLocalIpViewState extends State<ShareScreenLocalIpView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: WebRtcService.instance.startScreenSharing,
-              icon: Icon(Icons.screen_share),
-              label: Text('Start Sharing'),
-            ),
-            SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: WebRtcService.instance.stopScreenSharing,
-              icon: Icon(Icons.stop),
-              label: Text('Stop Sharing'),
-              style: ElevatedButton.styleFrom(foregroundColor: Colors.red),
-            ),
-            SizedBox(height: 20),
-
-            // Listen for WebInfoService updates
-            ValueListenableBuilder<String>(
-              valueListenable: WebInfoService.instance.wifiIpNotifier,
-              builder: (context, wifiIp, _) {
-                return Text("WiFi IP: $wifiIp");
-              },
-            ),
-
-            // Listen for LocalServerService updates
             ValueListenableBuilder<bool>(
               valueListenable: LocalServerService.instance.isServerStarted,
               builder: (context, isStarted, _) {
-                return isStarted
-                    ? Text(
-                      "Client IP: ${WebInfoService.instance.wifiIpNotifier.value}:${LocalServerService.instance.clientWebPort}",
-                    )
-                    : Text("Server not started");
+                if (isStarted) {
+                  final streamUrl =
+                      "${WebInfoService.instance.wifiIpNotifier.value}:${LocalServerService.instance.clientWebPort}";
+
+                  return Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 6),
+                    child: Container(
+                      padding: EdgeInsets.all(12),
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[900],
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.blueAccent, width: 2),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            "Access stream at:",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.white, fontSize: 16),
+                          ),
+                          SizedBox(height: 5),
+                          InkWell(
+                            onTap: () async {
+                              var url = 'http://$streamUrl';
+                              launchUrl(
+                                Uri.parse(url),
+                                mode: LaunchMode.externalApplication,
+                              );
+                            },
+                            child: Text(
+                              streamUrl,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blueAccent,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.copy, color: Colors.white),
+                                onPressed: () {
+                                  Clipboard.setData(
+                                    ClipboardData(text: streamUrl),
+                                  );
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text("Stream URL copied!"),
+                                    ),
+                                  );
+                                },
+                              ),
+                              IconButton(
+                                icon: Icon(Icons.share, color: Colors.white),
+                                onPressed: () async {
+                                  final result = await Share.share(
+                                    'Check out my share screen at http://$streamUrl',
+                                  );
+
+                                  if (result.status ==
+                                      ShareResultStatus.success) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          "Success to share Stream URL!",
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                } else {
+                  return Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16,
+                    ), // Match padding
+                    child: Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.redAccent, width: 2),
+                      ),
+                      child: Text(
+                        "Server not started",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.redAccent, fontSize: 16),
+                      ),
+                    ),
+                  );
+                }
+              },
+            ),
+            SizedBox(height: 12),
+            ValueListenableBuilder<int>(
+              valueListenable: WebRtcService.instance.clientCountNotifier,
+              builder: (context, clientCount, _) {
+                return Container(
+                  margin: EdgeInsets.symmetric(horizontal: 6),
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[900],
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.blueAccent, width: 2),
+                  ),
+                  child: Center(
+                    child: Text(
+                      'Total Client: $clientCount',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                );
               },
             ),
           ],
+        ),
+      ),
+      bottomNavigationBar: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ), // Ensure padding works
+        child: ValueListenableBuilder<bool>(
+          valueListenable: WebRtcService.instance.isScreenSharingNotifier,
+          builder: (context, isSharing, _) {
+            return ElevatedButton.icon(
+              onPressed:
+                  isSharing
+                      ? WebRtcService.instance.stopScreenSharing
+                      : WebRtcService.instance.startScreenSharing,
+              icon: Icon(isSharing ? Icons.stop : Icons.screen_share),
+              label: Text(isSharing ? 'Stop Sharing' : 'Start Sharing'),
+              style: ElevatedButton.styleFrom(
+                foregroundColor: isSharing ? Colors.red : null,
+              ),
+            );
+          },
         ),
       ),
     );
