@@ -4,7 +4,6 @@ import 'dart:developer';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
-import 'package:flutter_background/flutter_background.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:share_screen/utils/services/web_info_service.dart';
 import 'package:shelf_web_socket/shelf_web_socket.dart';
@@ -157,38 +156,6 @@ class WebRtcService extends ChangeNotifier {
     client.sink.add(offerData);
   }
 
-  /// ✅ Request background permission (Android only)
-  Future<void> requestBackgroundPermission([bool isRetry = false]) async {
-    try {
-      var hasPermissions = await FlutterBackground.hasPermissions;
-      if (!isRetry) {
-        const androidConfig = FlutterBackgroundAndroidConfig(
-          notificationTitle: 'Screen Sharing',
-          notificationText: 'Screen is being shared.',
-          notificationImportance: AndroidNotificationImportance.normal,
-          notificationIcon: AndroidResource(
-            name: 'livekit_ic_launcher',
-            defType: 'mipmap',
-          ),
-        );
-        hasPermissions = await FlutterBackground.initialize(
-          androidConfig: androidConfig,
-        );
-      }
-      if (hasPermissions && !FlutterBackground.isBackgroundExecutionEnabled) {
-        await FlutterBackground.enableBackgroundExecution();
-      }
-    } catch (e) {
-      if (!isRetry) {
-        await Future.delayed(
-          Duration(seconds: 1),
-          () => requestBackgroundPermission(true),
-        );
-      }
-      log('⚠️ Background permission error: $e');
-    }
-  }
-
   void initializeRenderer() async {
     try {
       await localRenderer.value.initialize();
@@ -208,7 +175,6 @@ class WebRtcService extends ChangeNotifier {
   // - Add tracks to each existing peer connection and send an updated offer.
   Future<void> startScreenSharing() async {
     try {
-      await requestBackgroundPermission();
       final stream = await navigator.mediaDevices.getDisplayMedia({
         'video': true,
         'audio': true,
