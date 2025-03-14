@@ -4,63 +4,112 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WebRTC Screen Viewer</title>
+    <style>
+      /* Dark theme and full screen container */
+      body {
+        margin: 0;
+        background-color: #181818;
+        color: #fff;
+        font-family: Arial, sans-serif;
+        overflow: hidden;
+      }
+      .container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        width: 100vw;
+        padding: 16px;
+        box-sizing: border-box;
+        position: relative;
+      }
+      /* Video element styling */
+      video {
+        border: 2px solid #333;
+        border-radius: 8px;
+        background-color: #000;
+        width: 100%;
+        height: 100%;
+        aspect-ratio: var(--video-aspect, 18/9); /* Default 18:9 ratio */
+        object-fit: cover; /* Fill container without black bars */
+      }
+      header,
+      footer {
+        position: absolute;
+        width: 100%;
+        text-align: center;
+        padding: 10px;
+      }
+      header {
+        top: 0;
+      }
+      footer {
+        bottom: 0;
+        font-size: 0.9em;
+      }
+    </style>
   </head>
   <body>
-    <h1>WebRTC Screen Viewer</h1>
-
-    <video
-      id="remote-video"
-      autoplay
-      playsinline
-      muted
-      style="width: 80%; border: 2px solid black"
-    ></video>
-
+    <header>
+      <h1>Screen Viewer</h1>
+    </header>
+    <div class="container">
+      <video id="remote-video" autoplay playsinline muted></video>
+    </div>
     <script>
-      let peerConnection = new RTCPeerConnection({
-        iceServers: [],
-      });
+      // Helper: create a new RTCPeerConnection with event handlers.
+      function createPeerConnection() {
+        let pc = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+        });
+        pc.ontrack = (event) => {
+          console.log("🎥 Track event received:", event);
+          if (event.streams.length > 0) {
+            remoteVideo.srcObject = event.streams[0];
+            // When metadata loads, update aspect ratio
+            remoteVideo.addEventListener("loadedmetadata", () => {
+              const videoAspect = remoteVideo.videoWidth / remoteVideo.videoHeight;
+              remoteVideo.style.setProperty('--video-aspect', `${videoAspect}`);
+            });
+            // Handle stream end
+            event.streams[0].oninactive = () => {
+              console.log("⛔ Remote stream stopped.");
+              stopVideoPlayback();
+            };
+          }
+        };
+        return pc;
+      }
 
-      let socket = new WebSocket("ws://10.10.4.14:4000");
+      // Global variables
+      const remoteVideo = document.getElementById("remote-video");
+      const socket = new WebSocket("ws://192.168.1.8:4000");
+      let peerConnection = createPeerConnection();
 
-      socket.onopen = () => {
-        console.log("🔗 WebSocket Connected!");
+      socket.onopen = () => { 
+        console.log("🔗 WebSocket Connected!"); 
       };
 
       socket.onmessage = async (event) => {
-        let data = JSON.parse(event.data);
-        console.log("📩 Received from WebSocket:", data);
-
+        const data = JSON.parse(event.data);
         if (data.type === "offer") {
-          console.log("🔄 Received Offer → Generating Answer...");
-          await peerConnection.setRemoteDescription(
-            new RTCSessionDescription(data)
-          );
-
-          let answer = await peerConnection.createAnswer();
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
+          const answer = await peerConnection.createAnswer();
           await peerConnection.setLocalDescription(answer);
-
           socket.send(JSON.stringify({ type: "answer", sdp: answer.sdp }));
-          console.log("📤 Sent Answer to WebSocket");
-        } else if (data.type === "answer") {
-          console.log("✅ Received Answer → Applying...");
-          await peerConnection.setRemoteDescription(
-            new RTCSessionDescription(data)
-          );
         } else if (data.type === "candidate") {
-          console.log("🔀 Adding ICE Candidate");
           peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        } else if (data.type === "stream_stopped") {
+          stopVideoPlayback();
         }
       };
 
-      peerConnection.ontrack = (event) => {
-        console.log("🎥 Track event received:", event);
-        if (event.streams.length > 0) {
-          document.getElementById("remote-video").srcObject = event.streams[0];
-        } else {
-          console.log("⚠️ No stream attached to track event.");
-        }
-      };
+      function stopVideoPlayback() {
+        remoteVideo.srcObject = null;
+        remoteVideo.style.setProperty('--video-aspect', '18/9'); // Reset to default
+        peerConnection.close();
+        peerConnection = createPeerConnection();
+      }
     </script>
   </body>
 </html>
