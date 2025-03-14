@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_background/flutter_background.dart';
@@ -117,7 +118,7 @@ class GetDisplayManualState extends State<GetDisplayManual> {
   Response _htmlHandler(Request request) {
     return Response.ok(
       '''
-   <!DOCTYPE html>
+  <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -141,6 +142,7 @@ class GetDisplayManualState extends State<GetDisplayManual> {
       });
 
       let socket = new WebSocket("ws://10.10.4.14:4000");
+      let remoteVideo = document.getElementById("remote-video");
 
       socket.onopen = () => {
         console.log("🔗 WebSocket Connected!");
@@ -169,21 +171,38 @@ class GetDisplayManualState extends State<GetDisplayManual> {
         } else if (data.type === "candidate") {
           console.log("🔀 Adding ICE Candidate");
           peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        } 
+        // ✅ Detect when Flutter stops the stream
+        else if (data.type === "stream_stopped") {
+          console.log("⛔ Stream stopped by Flutter. Stopping video playback...");
+          stopVideoPlayback();
         }
       };
 
       peerConnection.ontrack = (event) => {
         console.log("🎥 Track event received:", event);
         if (event.streams.length > 0) {
-          document.getElementById("remote-video").srcObject = event.streams[0];
+          remoteVideo.srcObject = event.streams[0];
+
+          // ✅ Detect when stream stops
+          event.streams[0].oninactive = () => {
+            console.log("⛔ Remote stream stopped.");
+            stopVideoPlayback();
+          };
         } else {
           console.log("⚠️ No stream attached to track event.");
         }
       };
+
+      // ✅ Function to stop video playback
+      function stopVideoPlayback() {
+        remoteVideo.srcObject = null; // Clear video
+        peerConnection.close(); // Close peer connection
+        peerConnection = new RTCPeerConnection({ iceServers: [] }); // Reset connection
+      }
     </script>
   </body>
 </html>
-
     ''',
       headers: {'Content-Type': 'text/html'},
     );
@@ -196,6 +215,7 @@ class GetDisplayManualState extends State<GetDisplayManual> {
     _initializePeerConnection();
     _startServer();
     initializeWebSocket();
+    _automateOfferAndAnswer(); // Automate offer and answer
   }
 
   void _initializeRenderer() async {
@@ -268,9 +288,41 @@ class GetDisplayManualState extends State<GetDisplayManual> {
       });
 
       setState(() {}); // Update UI after setting the stream
+
+      // Automate sending offer and applying answer
+      await createOffer(); // Send offer automatically
+
+      // Periodically check and apply answer if available
+      Timer.periodic(Duration(seconds: 5), (timer) async {
+        if (answerController.text.isNotEmpty) {
+          await applyAnswer();
+          timer.cancel(); // Stop the timer once the answer is applied
+        }
+      });
     } catch (e) {
       log('❌ Error starting screen sharing: $e');
     }
+  }
+
+  /// ✅ Stop Screen Sharing
+  Future<void> stopScreenSharing() async {
+    if (_localStream != null) {
+      _localStream!.getTracks().forEach((track) => track.stop()); // Stop tracks
+      _localStream = null;
+    }
+
+    _localRenderer.srcObject = null; // Clear renderer
+    setState(() {}); // Refresh UI
+
+    log("⛔ Screen sharing stopped");
+
+    // Notify all WebSocket clients that the stream has stopped
+    for (var client in clients) {
+      client.sink.add(jsonEncode({'type': 'stream_stopped'}));
+    }
+
+    // Re-initialize the peer connection to allow starting sharing again
+    await _initializePeerConnection();
   }
 
   /// ✅ Create Offer (Flutter → Web)
@@ -336,12 +388,26 @@ class GetDisplayManualState extends State<GetDisplayManual> {
     }
   }
 
+  /// ✅ Automate sending offer and applying answer
+  void _automateOfferAndAnswer() async {
+    await Future.delayed(Duration(seconds: 2)); // Wait for initialization
+    await createOffer(); // Send offer automatically
+
+    // Periodically check and apply answer if available
+    Timer.periodic(Duration(seconds: 5), (timer) async {
+      if (answerController.text.isNotEmpty) {
+        await applyAnswer();
+        timer.cancel(); // Stop the timer once the answer is applied
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Screen Sharing Host')),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -364,41 +430,21 @@ class GetDisplayManualState extends State<GetDisplayManual> {
 
             SizedBox(height: 20),
 
-            /// 🔹 Connection Status
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    Icon(Icons.wifi, color: Colors.green),
-                    SizedBox(width: 10),
-                    Text("WebSocket Connected"),
-                  ],
-                ),
-              ),
+            /// 🔹 Start Sharing Button
+            ElevatedButton.icon(
+              onPressed: startScreenSharing,
+              icon: Icon(Icons.screen_share),
+              label: Text('Start Sharing'),
             ),
 
             SizedBox(height: 20),
 
-            /// 🔹 Buttons Row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: startScreenSharing,
-                  icon: Icon(Icons.screen_share),
-                  label: Text('Start Sharing'),
-                ),
-                ElevatedButton.icon(
-                  onPressed: createOffer,
-                  icon: Icon(Icons.send),
-                  label: Text('Send Offer'),
-                ),
-              ],
+            /// 🔹 Stop Sharing Button
+            ElevatedButton.icon(
+              onPressed: stopScreenSharing,
+              icon: Icon(Icons.stop),
+              label: Text('Stop Sharing'),
+              style: ElevatedButton.styleFrom(foregroundColor: Colors.red),
             ),
 
             SizedBox(height: 20),
@@ -412,15 +458,6 @@ class GetDisplayManualState extends State<GetDisplayManual> {
               ),
               readOnly: true,
               maxLines: 3,
-            ),
-
-            SizedBox(height: 10),
-
-            /// 🔹 Apply Answer Button
-            ElevatedButton.icon(
-              onPressed: applyAnswer,
-              icon: Icon(Icons.check),
-              label: Text('Apply Answer'),
             ),
           ],
         ),
