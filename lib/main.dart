@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:share_screen/get_display_manual.dart';
+import 'package:share_screen/modules/share_screen_local_ip/view/share_screen_local_ip_view.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,11 +13,11 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Local Share Screen App',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: GetDisplayManual(),
+      home: ShareScreenLocalIpView(),
     );
   }
 }
