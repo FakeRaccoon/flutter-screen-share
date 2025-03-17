@@ -25,7 +25,7 @@ class ShareScreenLocalIpViewState extends State<ShareScreenLocalIpView> {
     WebRtcService.instance.initializeRenderer();
 
     //Local Server
-    LocalServerService.instance.startServer();
+    LocalServerService.instance.startServer(context);
 
     //WebSocket
     WebRtcService.instance.initializeWebSocket();

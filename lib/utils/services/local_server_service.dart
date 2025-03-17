@@ -15,9 +15,18 @@ class LocalServerService extends ChangeNotifier {
   String clientWebPort = "3389";
   String webSocketPort = "4000";
 
-  void startServer() async {
+  double ratio = 0.0;
+
+  void startServer(BuildContext context) async {
     await WebInfoService.instance.init();
     String wifiIP = WebInfoService.instance.wifiIpNotifier.value;
+
+    if (!context.mounted) return;
+
+    ratio =
+        MediaQuery.of(context).size.width / MediaQuery.of(context).size.height;
+
+    log("ASPECT RATIO $ratio");
 
     log('ip : $wifiIP');
     var handler = const Pipeline()
@@ -31,7 +40,7 @@ class LocalServerService extends ChangeNotifier {
     log('🚀 Server running at http://${server.address.host}:${server.port}');
   }
 
-   Response _htmlHandler(Request request) {
+  Response _htmlHandler(Request request) {
     return Response.ok(
       '''
 <!DOCTYPE html>
@@ -41,7 +50,6 @@ class LocalServerService extends ChangeNotifier {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WebRTC Screen Viewer</title>
     <style>
-      /* Dark theme and full screen container */
       body {
         margin: 0;
         background-color: #181818;
@@ -59,42 +67,33 @@ class LocalServerService extends ChangeNotifier {
         box-sizing: border-box;
         position: relative;
       }
-      /* Video element styling */
       video {
         border: 2px solid #333;
         border-radius: 8px;
         background-color: #000;
         width: 100%;
         height: auto;
-        max-width: 360px; /* Adjust the max-width to resemble YouTube shorts */
-        aspect-ratio: 9 / 16; /* Aspect ratio for YouTube shorts */
+        aspect-ratio: $ratio;
         object-fit: contain;
       }
-      header,
-      footer {
+      /* Status message styling */
+      #status-message {
         position: absolute;
-        width: 100%;
+        font-size: 24px;
+        color: #bbb;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 10px 20px;
+        border-radius: 8px;
         text-align: center;
-        padding: 10px;
-      }
-      header {
-        top: 0;
-      }
-      footer {
-        bottom: 0;
-        font-size: 0.9em;
       }
     </style>
   </head>
   <body>
-    <header>
-      <h1>Screen Viewer</h1>
-    </header>
     <div class="container">
+      <div id="status-message">Connecting to ws://${WebInfoService.instance.wifiIpNotifier.value}...</div>
       <video id="remote-video" autoplay playsinline muted></video>
     </div>
     <script>
-      // Helper: create a new RTCPeerConnection with event handlers.
       function createPeerConnection() {
         let pc = new RTCPeerConnection({
           iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -103,81 +102,79 @@ class LocalServerService extends ChangeNotifier {
           console.log("🎥 Track event received:", event);
           if (event.streams.length > 0) {
             remoteVideo.srcObject = event.streams[0];
-            // When metadata loads, adjust size.
+            statusMessage.textContent = ""; // Hide message when stream starts
             remoteVideo.addEventListener("loadedmetadata", resizeVideo);
-            // Handle stream end.
             event.streams[0].oninactive = () => {
               console.log("⛔ Remote stream stopped.");
               stopVideoPlayback();
             };
-          } else {
-            console.log("⚠️ No stream attached to track event.");
           }
         };
         return pc;
       }
-      
-      // Global variables.
+
       const remoteVideo = document.getElementById("remote-video");
+      const statusMessage = document.getElementById("status-message");
       const socket = new WebSocket("ws://${WebInfoService.instance.wifiIpNotifier.value}:$webSocketPort");
       let peerConnection = createPeerConnection();
-      
-      socket.onopen = () => { 
-        console.log("🔗 WebSocket Connected!"); 
+
+      socket.onopen = () => {
+        console.log("🔗 WebSocket Connected!");
+        statusMessage.textContent = "Waiting for stream...";
       };
-      
+
       socket.onmessage = async (event) => {
         const data = JSON.parse(event.data);
-        console.log("📩 Received from WebSocket:", data);
         if (data.type === "offer") {
-          console.log("🔄 Received Offer → Generating Answer...");
           await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
           const answer = await peerConnection.createAnswer();
           await peerConnection.setLocalDescription(answer);
           socket.send(JSON.stringify({ type: "answer", sdp: answer.sdp }));
-          console.log("📤 Sent Answer to WebSocket");
         } else if (data.type === "candidate") {
-          console.log("🔀 Adding ICE Candidate");
           peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
         } else if (data.type === "stream_stopped") {
-          console.log("⛔ Stream stopped by Flutter. Stopping video playback...");
           stopVideoPlayback();
         }
       };
-      
-      // When stopping video playback, close the current peerConnection
-      // and create a new one with fresh event handlers.
+
+      socket.onclose = () => {
+        console.log("❌ WebSocket Disconnected!");
+        statusMessage.textContent = "You are disconnected, please reload the page";
+      };
+
+      socket.onerror = (error) => {
+        console.error("⚠️ WebSocket Error:", error);
+        statusMessage.textContent = "You are disconnected, please reload the page";
+      };
+
       function stopVideoPlayback() {
         remoteVideo.srcObject = null;
+        statusMessage.textContent = "Waiting for stream...";
         peerConnection.close();
         peerConnection = createPeerConnection();
       }
-      
-      // Adjust the video size based on its intrinsic dimensions vs. viewport.
+
       function resizeVideo() {
         if (!remoteVideo.videoWidth || !remoteVideo.videoHeight) return;
         const vw = window.innerWidth;
         const vh = window.innerHeight;
         const videoAspect = remoteVideo.videoWidth / remoteVideo.videoHeight;
         const windowAspect = vw / vh;
-        
+
         if (videoAspect > windowAspect) {
-          // For wider videos: fill width and adjust height.
           remoteVideo.style.width = "100%";
           remoteVideo.style.height = "auto";
         } else {
-          // For taller videos: fill height and adjust width.
           remoteVideo.style.width = "auto";
           remoteVideo.style.height = "100%";
         }
       }
-      
-      // Resize on window resize.
+
       window.addEventListener("resize", resizeVideo);
     </script>
   </body>
 </html>
-      ''',
+    ''',
       headers: {'Content-Type': 'text/html'},
     );
   }
