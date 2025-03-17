@@ -102,11 +102,11 @@ class LocalServerService extends ChangeNotifier {
           console.log("🎥 Track event received:", event);
           if (event.streams.length > 0) {
             remoteVideo.srcObject = event.streams[0];
-            statusMessage.textContent = ""; // Hide message when stream starts
+            hideStatusMessage(); // Hide message when stream starts
             remoteVideo.addEventListener("loadedmetadata", resizeVideo);
             event.streams[0].oninactive = () => {
               console.log("⛔ Remote stream stopped.");
-              stopVideoPlayback();
+              showStatusMessage("Waiting for stream...");
             };
           }
         };
@@ -120,7 +120,7 @@ class LocalServerService extends ChangeNotifier {
 
       socket.onopen = () => {
         console.log("🔗 WebSocket Connected!");
-        statusMessage.textContent = "Waiting for stream...";
+        showStatusMessage("Waiting for stream...");
       };
 
       socket.onmessage = async (event) => {
@@ -133,25 +133,27 @@ class LocalServerService extends ChangeNotifier {
         } else if (data.type === "candidate") {
           peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
         } else if (data.type === "stream_stopped") {
-          stopVideoPlayback();
+          showStatusMessage("Waiting for stream...");
         }
       };
 
       socket.onclose = () => {
         console.log("❌ WebSocket Disconnected!");
-        statusMessage.textContent = "You are disconnected, please reload the page";
+        showStatusMessage("You are disconnected, please reload the page");
       };
 
       socket.onerror = (error) => {
         console.error("⚠️ WebSocket Error:", error);
-        statusMessage.textContent = "You are disconnected, please reload the page";
+        showStatusMessage("You are disconnected, please reload the page");
       };
 
-      function stopVideoPlayback() {
-        remoteVideo.srcObject = null;
-        statusMessage.textContent = "Waiting for stream...";
-        peerConnection.close();
-        peerConnection = createPeerConnection();
+      function showStatusMessage(text) {
+        statusMessage.textContent = text;
+        statusMessage.style.display = "block";
+      }
+
+      function hideStatusMessage() {
+        statusMessage.style.display = "none";
       }
 
       function resizeVideo() {
