@@ -34,9 +34,9 @@ class ShareScreenLocalIpViewState extends State<ShareScreenLocalIpView> {
     ConnectivityService.instance.initConnectivity();
     ConnectivityService.instance.addListener();
 
-    ConnectivityService.instance.connectionStatusNotifier.addListener(() {
-      _handleWifiIpChange();
-    });
+    // ConnectivityService.instance.connectionStatusNotifier.addListener(() {
+    //   _handleWifiIpChange();
+    // });
   }
 
   @override
@@ -46,9 +46,9 @@ class ShareScreenLocalIpViewState extends State<ShareScreenLocalIpView> {
     super.dispose();
   }
 
-  void _handleWifiIpChange() {
-    WebRtcService.instance.stopScreenSharing();
-  }
+  // void _handleWifiIpChange() {
+  //   WebRtcService.instance.stopScreenSharing();
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -126,6 +126,8 @@ class ShareScreenLocalIpViewState extends State<ShareScreenLocalIpView> {
                                   final result = await Share.share(
                                     'Check out my share screen at http://$streamUrl',
                                   );
+
+                                  if (!context.mounted) return;
 
                                   if (result.status ==
                                       ShareResultStatus.success) {
