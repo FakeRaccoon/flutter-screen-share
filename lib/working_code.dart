@@ -161,7 +161,9 @@ class GetDisplayManualState extends State<GetDisplayManual> {
   // - Add tracks to each existing peer connection and send an updated offer.
   Future<void> startScreenSharing() async {
     try {
-      await requestBackgroundPermission();
+      if (Platform.isAndroid) {
+        await requestBackgroundPermission();
+      }
       final stream = await navigator.mediaDevices.getDisplayMedia({
         'video': true,
         'audio': true,

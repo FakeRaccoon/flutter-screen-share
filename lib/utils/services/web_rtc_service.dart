@@ -229,8 +229,8 @@ class WebRtcService extends ChangeNotifier {
     try {
       await requestPermission();
       final stream = await navigator.mediaDevices.getDisplayMedia({
-        'video': true,
         'audio': true,
+        'video': Platform.isIOS ? {'deviceId': 'broadcast'} : true,
       });
 
       if (stream.getTracks().isEmpty) {
@@ -289,7 +289,9 @@ class WebRtcService extends ChangeNotifier {
       client.sink.add(jsonEncode({'type': 'stream_stopped'}));
     }
     isScreenSharingNotifier.value = false;
-    await FlutterBackground.disableBackgroundExecution();
+    if (Platform.isAndroid) {
+      await FlutterBackground.disableBackgroundExecution();
+    }
     notifyListeners();
   }
 
