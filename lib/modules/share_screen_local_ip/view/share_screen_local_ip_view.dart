@@ -195,26 +195,25 @@ class ShareScreenLocalIpViewState extends State<ShareScreenLocalIpView> {
           ],
         ),
       ),
-      bottomNavigationBar: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
-        ), // Ensure padding works
-        child: ValueListenableBuilder<bool>(
-          valueListenable: WebRtcService.instance.isScreenSharingNotifier,
-          builder: (context, isSharing, _) {
-            return ElevatedButton.icon(
-              onPressed:
-                  isSharing
-                      ? WebRtcService.instance.stopScreenSharing
-                      : WebRtcService.instance.startScreenSharing,
-              icon: Icon(isSharing ? Icons.stop : Icons.screen_share),
-              label: Text(isSharing ? 'Stop Sharing' : 'Start Sharing'),
-              style: ElevatedButton.styleFrom(
-                foregroundColor: isSharing ? Colors.red : null,
-              ),
-            );
-          },
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: ValueListenableBuilder<bool>(
+            valueListenable: WebRtcService.instance.isScreenSharingNotifier,
+            builder: (context, isSharing, _) {
+              return ElevatedButton.icon(
+                onPressed:
+                    isSharing
+                        ? WebRtcService.instance.stopScreenSharing
+                        : WebRtcService.instance.startScreenSharing,
+                icon: Icon(isSharing ? Icons.stop : Icons.screen_share),
+                label: Text(isSharing ? 'Stop Sharing' : 'Start Sharing'),
+                style: ElevatedButton.styleFrom(
+                  foregroundColor: isSharing ? Colors.red : null,
+                ),
+              );
+            },
+          ),
         ),
       ),
     );

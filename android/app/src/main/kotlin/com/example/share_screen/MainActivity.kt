@@ -1,4 +1,4 @@
-package com.example.share_screen
+package com.screen.share
 
 import io.flutter.embedding.android.FlutterActivity
 

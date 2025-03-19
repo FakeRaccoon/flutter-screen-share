@@ -169,7 +169,7 @@ class WebRtcService extends ChangeNotifier {
     }
   }
 
-  Future<void> reuestPermisison() async {
+  Future<void> requestPermission() async {
     if (Platform.isAndroid) {
       // Android specific
       bool hasCapturePermission = await Helper.requestCapturePermission();
@@ -177,40 +177,46 @@ class WebRtcService extends ChangeNotifier {
         return;
       }
 
-      requestBackgroundPermission([bool isRetry = false]) async {
-        // Required for android screenshare.
-        try {
-          bool hasPermissions = await FlutterBackground.hasPermissions;
-          if (!isRetry) {
-            const androidConfig = FlutterBackgroundAndroidConfig(
-              notificationTitle: 'Screen Sharing',
-              notificationText: 'LiveKit Example is sharing the screen.',
-              notificationImportance: AndroidNotificationImportance.normal,
-              notificationIcon: AndroidResource(
-                name: 'livekit_ic_launcher',
-                defType: 'mipmap',
-              ),
-            );
-            hasPermissions = await FlutterBackground.initialize(
-              androidConfig: androidConfig,
-            );
-          }
-          if (hasPermissions &&
-              !FlutterBackground.isBackgroundExecutionEnabled) {
-            await FlutterBackground.enableBackgroundExecution();
-          }
-        } catch (e) {
-          if (!isRetry) {
-            return await Future<void>.delayed(
-              const Duration(seconds: 1),
-              () => requestBackgroundPermission(true),
-            );
-          }
-          log('could not publish video: $e');
-        }
+      await requestBackgroundPermission();
+    }
+  }
+
+  Future<void> requestBackgroundPermission({int retryCount = 0}) async {
+    const int maxRetries = 3;
+
+    try {
+      bool hasPermissions = await FlutterBackground.hasPermissions;
+
+      if (retryCount == 0) {
+        const androidConfig = FlutterBackgroundAndroidConfig(
+          notificationTitle: 'Screen Sharing',
+          notificationText: 'LiveKit Example is sharing the screen.',
+          notificationImportance: AndroidNotificationImportance.normal,
+          notificationIcon: AndroidResource(
+            name: 'livekit_ic_launcher',
+            defType: 'mipmap',
+          ),
+        );
+        hasPermissions = await FlutterBackground.initialize(
+          androidConfig: androidConfig,
+        );
       }
 
-      await requestBackgroundPermission();
+      if (hasPermissions && !FlutterBackground.isBackgroundExecutionEnabled) {
+        await FlutterBackground.enableBackgroundExecution();
+      }
+    } catch (e) {
+      if (retryCount < maxRetries) {
+        log(
+          'Retrying requestBackgroundPermission... Attempt ${retryCount + 1}',
+        );
+        await Future.delayed(const Duration(seconds: 1));
+        await requestBackgroundPermission(retryCount: retryCount + 1);
+      } else {
+        log(
+          'Failed to request background permission after $maxRetries attempts: $e',
+        );
+      }
     }
   }
 
@@ -221,7 +227,7 @@ class WebRtcService extends ChangeNotifier {
   // - Add tracks to each existing peer connection and send an updated offer.
   Future<void> startScreenSharing() async {
     try {
-      await reuestPermisison();
+      await requestPermission();
       final stream = await navigator.mediaDevices.getDisplayMedia({
         'video': true,
         'audio': true,
