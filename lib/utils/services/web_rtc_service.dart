@@ -30,9 +30,8 @@ class WebRtcService extends ChangeNotifier {
 
   // ICE server configuration with a STUN server.
   final Map<String, dynamic> iceConfig = {
-    'iceServers': [
-      {'urls': 'stun:stun.l.google.com:19302'},
-    ],
+    'iceServers': [],
+    'bundlePolicy': 'max-bundle',
   };
 
   void initializeWebSocket() async {
@@ -182,40 +181,37 @@ class WebRtcService extends ChangeNotifier {
   }
 
   Future<void> requestBackgroundPermission({int retryCount = 0}) async {
-    const int maxRetries = 3;
+    while (true) {
+      try {
+        bool hasPermissions = await FlutterBackground.hasPermissions;
 
-    try {
-      bool hasPermissions = await FlutterBackground.hasPermissions;
+        if (retryCount == 0) {
+          const androidConfig = FlutterBackgroundAndroidConfig(
+            notificationTitle: 'Screen Sharing',
+            notificationText: 'ScreenStream is sharing the screen.',
+            notificationImportance: AndroidNotificationImportance.high,
+            notificationIcon: AndroidResource(
+              name: 'ic_launcher',
+              defType: 'mipmap',
+            ),
+          );
+          hasPermissions = await FlutterBackground.initialize(
+            androidConfig: androidConfig,
+          );
+        }
 
-      if (retryCount == 0) {
-        const androidConfig = FlutterBackgroundAndroidConfig(
-          notificationTitle: 'Screen Sharing',
-          notificationText: 'LiveKit Example is sharing the screen.',
-          notificationImportance: AndroidNotificationImportance.normal,
-          notificationIcon: AndroidResource(
-            name: 'livekit_ic_launcher',
-            defType: 'mipmap',
-          ),
-        );
-        hasPermissions = await FlutterBackground.initialize(
-          androidConfig: androidConfig,
-        );
-      }
+        if (hasPermissions && !FlutterBackground.isBackgroundExecutionEnabled) {
+          await FlutterBackground.enableBackgroundExecution();
+        }
 
-      if (hasPermissions && !FlutterBackground.isBackgroundExecutionEnabled) {
-        await FlutterBackground.enableBackgroundExecution();
-      }
-    } catch (e) {
-      if (retryCount < maxRetries) {
+        log("✅ Background permission granted");
+        return; // Exit function when successful
+      } catch (e) {
+        retryCount++;
         log(
-          'Retrying requestBackgroundPermission... Attempt ${retryCount + 1}',
+          "⚠️ Error requesting background permission: $e. Retrying... Attempt $retryCount",
         );
         await Future.delayed(const Duration(seconds: 1));
-        await requestBackgroundPermission(retryCount: retryCount + 1);
-      } else {
-        log(
-          'Failed to request background permission after $maxRetries attempts: $e',
-        );
       }
     }
   }
@@ -228,10 +224,24 @@ class WebRtcService extends ChangeNotifier {
   Future<void> startScreenSharing() async {
     try {
       await requestPermission();
-      final stream = await navigator.mediaDevices.getDisplayMedia({
+      final mediaConstraints = {
+        'video': {
+          'frameRate': {'ideal': 30, 'max': 60},
+          'width': {'ideal': 1280},
+          'height': {'ideal': 720},
+          'mandatory': {
+            'minWidth': '640',
+            'minHeight': '360',
+            'maxFrameRate': '60',
+          },
+          if (WebRTC.platformIsIOS) 'deviceId': 'broadcast',
+        },
         'audio': true,
-        'video': Platform.isIOS ? {'deviceId': 'broadcast'} : true,
-      });
+      };
+
+      final stream = await navigator.mediaDevices.getDisplayMedia(
+        mediaConstraints,
+      );
 
       if (stream.getTracks().isEmpty) {
         log('❌ No screen share stream received');

@@ -2,9 +2,9 @@ PODS:
   - connectivity_plus (0.0.1):
     - Flutter
   - Flutter (1.0.0)
-  - flutter_webrtc (0.12.6):
+  - flutter_webrtc (0.14.0):
     - Flutter
-    - WebRTC-SDK (= 125.6422.06)
+    - WebRTC-SDK (= 125.6422.07)
   - network_info_plus (0.0.1):
     - Flutter
   - path_provider_foundation (0.0.1):
@@ -14,7 +14,7 @@ PODS:
     - Flutter
   - url_launcher_ios (0.0.1):
     - Flutter
-  - WebRTC-SDK (125.6422.06)
+  - WebRTC-SDK (125.6422.07)
 
 DEPENDENCIES:
   - connectivity_plus (from `.symlinks/plugins/connectivity_plus/ios`)
@@ -48,12 +48,12 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   connectivity_plus: cb623214f4e1f6ef8fe7403d580fdad517d2f7dd
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
-  flutter_webrtc: 57f32415b8744e806f9c2a96ccdb60c6a627ba33
+  flutter_webrtc: fd0d3bdef8766a0736dbbe2e5b7e85f1f3c52117
   network_info_plus: cf61925ab5205dce05a4f0895989afdb6aade5fc
   path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564
   share_plus: 50da8cb520a8f0f65671c6c6a99b3617ed10a58a
   url_launcher_ios: 694010445543906933d732453a59da0a173ae33d
-  WebRTC-SDK: 79942c006ea64f6fb48d7da8a4786dfc820bc1db
+  WebRTC-SDK: dff00a3892bc570b6014e046297782084071657e
 
 PODFILE CHECKSUM: 87da87254784e9398819c07b2701124e8499b2a2
 

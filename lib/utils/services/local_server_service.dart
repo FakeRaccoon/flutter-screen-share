@@ -95,9 +95,11 @@ class LocalServerService extends ChangeNotifier {
     </div>
     <script>
       function createPeerConnection() {
-        let pc = new RTCPeerConnection({
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-        });
+      const iceConfig = {
+  iceServers: [], // No external STUN/TURN servers
+  bundlePolicy: "max-bundle",
+};
+        let pc = new RTCPeerConnection(iceConfig);
         pc.ontrack = (event) => {
           console.log("🎥 Track event received:", event);
           if (event.streams.length > 0) {
@@ -106,6 +108,7 @@ class LocalServerService extends ChangeNotifier {
             remoteVideo.addEventListener("loadedmetadata", resizeVideo);
             event.streams[0].oninactive = () => {
               console.log("⛔ Remote stream stopped.");
+              remoteVideo.srcObject = null; // Clear video
               showStatusMessage("Waiting for stream...");
             };
           }
@@ -133,6 +136,7 @@ class LocalServerService extends ChangeNotifier {
         } else if (data.type === "candidate") {
           peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
         } else if (data.type === "stream_stopped") {
+          remoteVideo.srcObject = null; // Clear video
           showStatusMessage("Waiting for stream...");
         }
       };
